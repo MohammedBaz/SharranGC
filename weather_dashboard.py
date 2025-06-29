@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import numpy as np
 
 # Set page configuration
@@ -70,7 +71,7 @@ def load_data_from_github(url):
 # --- Main App Logic ---
 
 # IMPORTANT: This URL points to your NEWLY CLEANED data file.
-DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/refs/heads/main/WD_clean.csv" 
+DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/main/WD_clean.csv" 
 
 # Load the data
 df = load_data_from_github(DATA_URL)
@@ -124,11 +125,23 @@ if df is not None and not df.empty:
 
     if 'Temp' in df_plot.columns and 'Pt' in df_plot.columns:
         st.subheader("Temperature & Dew Point")
-        # Plot the modified dataframe
-        fig_temp = px.line(df_plot.reset_index(), x='datetime', y=['Temp', 'Pt'],
-                           title="Temperature and Dew Point Over Time",
-                           labels={'value': 'Temperature (°C)', 'variable': 'Measurement', 'datetime': 'Time'},
-                           template="plotly_white")
+        # Use Plotly graph objects for more robust plotting with gaps
+        fig_temp = go.Figure()
+        
+        # Add Temperature trace
+        fig_temp.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Temp'], mode='lines', name='Temp'))
+        
+        # Add Dew Point trace
+        fig_temp.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Pt'], mode='lines', name='Pt'))
+        
+        # Update layout
+        fig_temp.update_layout(
+            title="Temperature and Dew Point Over Time",
+            xaxis_title="Time",
+            yaxis_title="Temperature (°C)",
+            template="plotly_white",
+            legend_title="Measurement"
+        )
         st.plotly_chart(fig_temp, use_container_width=True)
 
     if 'Speed' in df_plot.columns:
