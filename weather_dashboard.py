@@ -9,49 +9,50 @@ st.set_page_config(layout="wide", page_title="Weather Data Dashboard", page_icon
 # --- Page Title and Introduction ---
 st.title("🌤️ Weather Data Dashboard")
 st.markdown("""
-This dashboard automatically loads and visualizes weather station data 
-directly from a public GitHub repository.
+This dashboard visualizes pre-cleaned weather station data from a public GitHub repository.
 """)
 
 # --- Function to load data ---
 @st.cache_data(ttl=600) # Cache data for 10 minutes
 def load_data_from_github(url):
-    """Loads and processes data from a raw GitHub URL."""
+    """Loads and processes pre-cleaned data from a raw GitHub URL."""
     try:
-        # Use header=1 to skip the first row and use the second row as the header
-        df = pd.read_csv(url, header=1)
+        # Load the data. No need to skip headers as the file is clean.
+        df = pd.read_csv(url)
         
-        # --- Data Type Conversion ---
-        # List of columns that should be numeric
+        # --- Data Type Conversion (as a safety measure) ---
         numeric_cols = [
-            'Out Temp', 'Out Hum', 'Dew Pt.', 'Wind Speed', 'Bar', 'Rain', 'Solar Rad.'
+            'Out Temp', 'Temp', 'Hum', 'Pt.', 'Speed', 'Bar  ', 'Rain', 'Rad.', 'Rate'
         ]
-        # Loop through the columns and convert them to numeric, coercing errors
+        
+        # Clean column names to match what's in the file
+        df.columns = df.columns.str.strip().str.replace('.', '', regex=False)
+
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-        
+
         # --- Datetime Processing ---
         if 'Date' in df.columns and 'Time' in df.columns:
-            # Combine Date and Time, coercing errors to NaT (Not a Time)
-            df['datetime'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Time'].astype(str), errors='coerce')
-            df.dropna(subset=['datetime'], inplace=True) # Drop rows where datetime conversion failed
+            # Use dayfirst=True to handle dates like '13/04/23'
+            df['datetime'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Time'].astype(str), errors='coerce', dayfirst=True)
+            df.dropna(subset=['datetime'], inplace=True)
             df.set_index('datetime', inplace=True)
             df.sort_index(inplace=True)
         else:
-            st.warning("The dataset must contain 'Date' and 'Time' columns.")
+            st.error("Dataset must contain 'Date' and 'Time' columns.")
             return None
-
+            
         return df
         
     except Exception as e:
-        st.error(f"Failed to load or process data from the URL. Error: {e}")
+        st.error(f"Failed to load or process data. Error: {e}")
         return None
 
 # --- Main App Logic ---
 
-# IMPORTANT: Replace this with the raw URL to YOUR WD.csv file on GitHub
-DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/refs/heads/main/WD.csv" 
+# IMPORTANT: This URL points to your NEWLY CLEANED data file.
+DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/refs/heads/main/WD_clean.csv" 
 
 # Load the data
 df = load_data_from_github(DATA_URL)
@@ -59,68 +60,69 @@ df = load_data_from_github(DATA_URL)
 if df is not None and not df.empty:
     # --- Key Metrics Display ---
     st.header("Latest Conditions")
-    # Drop rows with NA in key columns before getting the latest data
-    latest_data = df.dropna(subset=['Out Temp', 'Out Hum', 'Wind Speed', 'Bar']).iloc[-1]
+    
+    # Use the column names identified from the data file: 'Temp', 'Hum', 'Speed', 'Bar'
+    metric_cols = ['Temp', 'Hum', 'Speed', 'Bar']
+    existing_metric_cols = [col for col in metric_cols if col in df.columns]
 
-    col1, col2, col3, col4 = st.columns(4)
+    if not df.dropna(subset=existing_metric_cols).empty:
+        latest_data = df.dropna(subset=existing_metric_cols).iloc[-1]
+        
+        col1, col2, col3, col4 = st.columns(4)
 
-    def display_metric(column, label, value, unit="", help_text=""):
-        with column:
-            # Check if value is not NaN before formatting
-            if pd.notna(value):
-                st.metric(label=label, value=f"{value:.1f} {unit}", help=help_text)
-            else:
-                st.metric(label=label, value="N/A", help=help_text)
+        def display_metric(column, label, value, unit="", help_text=""):
+            with column:
+                if pd.notna(value):
+                    st.metric(label=label, value=f"{value:.1f} {unit}", help=help_text)
+                else:
+                    st.metric(label=label, value="N/A", help=help_text)
 
-    display_metric(col1, "🌡️ Temperature", latest_data.get('Out Temp'), "°C", "Outside Temperature")
-    display_metric(col2, "💧 Humidity", latest_data.get('Out Hum'), "%", "Outside Humidity")
-    display_metric(col3, "💨 Wind Speed", latest_data.get('Wind Speed'), "km/h", "Current Wind Speed")
-    display_metric(col4, "Barometer", latest_data.get('Bar'), "mbar", "Barometric Pressure")
+        display_metric(col1, "🌡️ Temperature", latest_data.get('Temp'), "°C", "Outside Temperature")
+        display_metric(col2, "💧 Humidity", latest_data.get('Hum'), "%", "Outside Humidity")
+        display_metric(col3, "💨 Wind Speed", latest_data.get('Speed'), "km/h", "Current Wind Speed")
+        display_metric(col4, "Barometer", latest_data.get('Bar'), "mbar", "Barometric Pressure")
+    else:
+        st.warning("No recent valid data to display metrics.")
+
 
     # --- Charts Section ---
     st.header("Weather Trends")
 
-    if 'Out Temp' in df.columns and 'Dew Pt.' in df.columns:
+    if 'Temp' in df.columns and 'Pt' in df.columns:
         st.subheader("Temperature & Dew Point")
-        fig_temp = px.line(df.reset_index(), x='datetime', y=['Out Temp', 'Dew Pt.'],
+        fig_temp = px.line(df.reset_index(), x='datetime', y=['Temp', 'Pt'],
                            title="Temperature and Dew Point Over Time",
-                           labels={'value': 'Temperature (°C)', 'datetime': 'Time'},
+                           labels={'value': 'Temperature (°C)', 'variable': 'Measurement', 'datetime': 'Time'},
                            template="plotly_white")
-        fig_temp.update_layout(legend_title_text='Measurement')
         st.plotly_chart(fig_temp, use_container_width=True)
 
-    if 'Wind Speed' in df.columns:
+    if 'Speed' in df.columns:
         st.subheader("Wind Speed")
-        fig_wind = px.line(df.reset_index(), x='datetime', y='Wind Speed',
+        fig_wind = px.line(df.reset_index(), x='datetime', y='Speed',
                            title="Wind Speed Over Time",
-                           labels={'Wind Speed': 'Speed (km/h)', 'datetime': 'Time'},
+                           labels={'Speed': 'Speed (km/h)', 'datetime': 'Time'},
                            template="plotly_white")
         st.plotly_chart(fig_wind, use_container_width=True)
 
-    c1, c2 = st.columns((1,1))
-    with c1:
-        if 'Rain' in df.columns:
-            st.subheader("Cumulative Rainfall")
-            fig_rain = px.area(df.reset_index(), x='datetime', y='Rain',
-                               title="Cumulative Rainfall",
-                               labels={'Rain': 'Rainfall (mm)', 'datetime': 'Time'},
-                               template="plotly_white")
-            st.plotly_chart(fig_rain, use_container_width=True)
-    with c2:
-        if 'Solar Rad.' in df.columns:
-            st.subheader("Solar Radiation")
-            fig_solar = px.line(df.reset_index(), x='datetime', y='Solar Rad.',
-                                title="Solar Radiation Over Time",
-                                labels={'Solar Rad.': 'Radiation (W/m²)', 'datetime': 'Time'},
-                                template="plotly_white", color_discrete_sequence=['orange'])
-            st.plotly_chart(fig_solar, use_container_width=True)
+    if 'Rain' in df.columns:
+        st.subheader("Cumulative Rainfall")
+        fig_rain = px.area(df.reset_index(), x='datetime', y='Rain',
+                           title="Cumulative Rainfall",
+                           labels={'Rain': 'Rainfall (mm)', 'datetime': 'Time'},
+                           template="plotly_white")
+        st.plotly_chart(fig_rain, use_container_width=True)
+
+    if 'Rad' in df.columns:
+        st.subheader("Solar Radiation")
+        fig_solar = px.line(df.reset_index(), x='datetime', y='Rad',
+                            title="Solar Radiation Over Time",
+                            labels={'Rad': 'Radiation (W/m²)', 'datetime': 'Time'},
+                            template="plotly_white", color_discrete_sequence=['orange'])
+        st.plotly_chart(fig_solar, use_container_width=True)
 
     # --- Data Table ---
-    st.header("Raw Data")
-    if st.checkbox("Show full data table"):
-        st.dataframe(df)
-    else:
-        st.dataframe(df.head())
+    st.header("Raw Data Viewer")
+    st.dataframe(df)
 
 else:
-    st.warning("Could not load data. Please ensure the GitHub URL in the script is correct, the file is public, and the format is correct.")
+    st.error("Could not load or display data. Please check the GitHub URL and file content.")
