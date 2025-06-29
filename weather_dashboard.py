@@ -70,7 +70,7 @@ def load_data_from_github(url):
 # --- Main App Logic ---
 
 # IMPORTANT: This URL points to your NEWLY CLEANED data file.
-DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/main/WD_clean.csv" 
+DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/refs/heads/main/WD_clean.csv" 
 
 # Load the data
 df = load_data_from_github(DATA_URL)
@@ -104,35 +104,52 @@ if df is not None and not df.empty:
 
 
     # --- Charts Section ---
+    # Create a copy for plotting to avoid modifying the cached dataframe
+    df_plot = df.copy()
+
+    # Identify time gaps greater than a threshold (e.g., 2 hours)
+    time_diff = df_plot.index.to_series().diff()
+    gap_threshold = pd.Timedelta(hours=2)
+    
+    # Insert a row with NaN values where a gap is detected
+    # This tells Plotly to create a break in the line
+    gaps = df_plot[time_diff > gap_threshold].index
+    for gap_start in gaps:
+        gap_row = pd.DataFrame([pd.NA] * len(df_plot.columns)).T
+        gap_row.columns = df_plot.columns
+        gap_row.index = [gap_start - pd.Timedelta(seconds=1)]
+        df_plot = pd.concat([df_plot, gap_row]).sort_index()
+
     st.header("Weather Trends")
 
-    if 'Temp' in df.columns and 'Pt' in df.columns:
+    if 'Temp' in df_plot.columns and 'Pt' in df_plot.columns:
         st.subheader("Temperature & Dew Point")
-        fig_temp = px.line(df.reset_index(), x='datetime', y=['Temp', 'Pt'],
+        # Plot the modified dataframe
+        fig_temp = px.line(df_plot.reset_index(), x='datetime', y=['Temp', 'Pt'],
                            title="Temperature and Dew Point Over Time",
                            labels={'value': 'Temperature (°C)', 'variable': 'Measurement', 'datetime': 'Time'},
                            template="plotly_white")
         st.plotly_chart(fig_temp, use_container_width=True)
 
-    if 'Speed' in df.columns:
+    if 'Speed' in df_plot.columns:
         st.subheader("Wind Speed")
-        fig_wind = px.line(df.reset_index(), x='datetime', y='Speed',
+        fig_wind = px.line(df_plot.reset_index(), x='datetime', y='Speed',
                            title="Wind Speed Over Time",
                            labels={'Speed': 'Speed (km/h)', 'datetime': 'Time'},
                            template="plotly_white")
         st.plotly_chart(fig_wind, use_container_width=True)
 
-    if 'Rain' in df.columns:
+    if 'Rain' in df_plot.columns:
         st.subheader("Cumulative Rainfall")
-        fig_rain = px.area(df.reset_index(), x='datetime', y='Rain',
+        fig_rain = px.area(df_plot.reset_index(), x='datetime', y='Rain',
                            title="Cumulative Rainfall",
                            labels={'Rain': 'Rainfall (mm)', 'datetime': 'Time'},
                            template="plotly_white")
         st.plotly_chart(fig_rain, use_container_width=True)
 
-    if 'Rad' in df.columns:
+    if 'Rad' in df_plot.columns:
         st.subheader("Solar Radiation")
-        fig_solar = px.line(df.reset_index(), x='datetime', y='Rad',
+        fig_solar = px.line(df_plot.reset_index(), x='datetime', y='Rad',
                             title="Solar Radiation Over Time",
                             labels={'Rad': 'Radiation (W/m²)', 'datetime': 'Time'},
                             template="plotly_white", color_discrete_sequence=['orange'])
@@ -140,6 +157,7 @@ if df is not None and not df.empty:
 
     # --- Data Table ---
     st.header("Raw Data Viewer")
+    # Show the original, unmodified dataframe
     st.dataframe(df)
 
 else:
