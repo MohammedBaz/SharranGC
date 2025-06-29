@@ -6,6 +6,23 @@ import numpy as np
 # Set page configuration
 st.set_page_config(layout="wide", page_title="Weather Data Dashboard", page_icon="🌤️")
 
+# --- Helper Function for Unique Columns ---
+def deduplicate_columns(df_columns):
+    """
+    Ensures all column names are unique by appending a suffix to duplicates.
+    Example: ['A', 'B', 'A'] -> ['A', 'B', 'A_1']
+    """
+    new_cols = []
+    counts = {}
+    for col in df_columns:
+        cur_count = counts.get(col, 0)
+        if cur_count > 0:
+            new_cols.append(f"{col}_{cur_count}")
+        else:
+            new_cols.append(col)
+        counts[col] = cur_count + 1
+    return new_cols
+
 # --- Page Title and Introduction ---
 st.title("🌤️ Weather Data Dashboard")
 st.markdown("""
@@ -20,14 +37,15 @@ def load_data_from_github(url):
         # Load the data. No need to skip headers as the file is clean.
         df = pd.read_csv(url)
         
-        # --- Data Type Conversion (as a safety measure) ---
+        # Clean and deduplicate column names to prevent errors
+        cleaned_cols = df.columns.str.strip().str.replace('.', '', regex=False)
+        df.columns = deduplicate_columns(cleaned_cols)
+
+        # List of columns that should be numeric
         numeric_cols = [
-            'Out Temp', 'Temp', 'Hum', 'Pt.', 'Speed', 'Bar  ', 'Rain', 'Rad.', 'Rate'
+            'Out Temp', 'Temp', 'Hum', 'Pt', 'Speed', 'Bar', 'Rain', 'Rad', 'Rate'
         ]
         
-        # Clean column names to match what's in the file
-        df.columns = df.columns.str.strip().str.replace('.', '', regex=False)
-
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -52,7 +70,7 @@ def load_data_from_github(url):
 # --- Main App Logic ---
 
 # IMPORTANT: This URL points to your NEWLY CLEANED data file.
-DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/refs/heads/main/WD_clean.csv" 
+DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/main/WD_clean.csv" 
 
 # Load the data
 df = load_data_from_github(DATA_URL)
