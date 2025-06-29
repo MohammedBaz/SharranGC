@@ -16,13 +16,36 @@ directly from a public GitHub repository.
 # --- Function to load data ---
 @st.cache_data(ttl=600) # Cache data for 10 minutes
 def load_data_from_github(url):
-    """Loads data from a raw GitHub URL."""
+    """Loads and processes data from a raw GitHub URL."""
     try:
         # Use header=1 to skip the first row and use the second row as the header
         df = pd.read_csv(url, header=1)
+        
+        # --- Data Type Conversion ---
+        # List of columns that should be numeric
+        numeric_cols = [
+            'Out Temp', 'Out Hum', 'Dew Pt.', 'Wind Speed', 'Bar', 'Rain', 'Solar Rad.'
+        ]
+        # Loop through the columns and convert them to numeric, coercing errors
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # --- Datetime Processing ---
+        if 'Date' in df.columns and 'Time' in df.columns:
+            # Combine Date and Time, coercing errors to NaT (Not a Time)
+            df['datetime'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Time'].astype(str), errors='coerce')
+            df.dropna(subset=['datetime'], inplace=True) # Drop rows where datetime conversion failed
+            df.set_index('datetime', inplace=True)
+            df.sort_index(inplace=True)
+        else:
+            st.warning("The dataset must contain 'Date' and 'Time' columns.")
+            return None
+
         return df
+        
     except Exception as e:
-        st.error(f"Failed to load data from the URL. Please check the URL and file format. Error: {e}")
+        st.error(f"Failed to load or process data from the URL. Error: {e}")
         return None
 
 # --- Main App Logic ---
@@ -34,36 +57,25 @@ DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/refs/heads/m
 df = load_data_from_github(DATA_URL)
 
 if df is not None and not df.empty:
-    # --- Data Preprocessing ---
-    if 'Date' in df.columns and 'Time' in df.columns:
-        try:
-            # Combine Date and Time, coercing errors to NaT (Not a Time)
-            df['datetime'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Time'].astype(str), errors='coerce')
-            df.dropna(subset=['datetime'], inplace=True)
-            df.set_index('datetime', inplace=True)
-            df.sort_index(inplace=True)
-        except Exception as e:
-            st.error(f"Could not process Date and Time columns. Error: {e}")
-            st.stop()
-    else:
-        st.warning("The dataset must contain 'Date' and 'Time' columns.")
-        st.stop()
-
-
     # --- Key Metrics Display ---
     st.header("Latest Conditions")
-    latest_data = df.iloc[-1]
+    # Drop rows with NA in key columns before getting the latest data
+    latest_data = df.dropna(subset=['Out Temp', 'Out Hum', 'Wind Speed', 'Bar']).iloc[-1]
 
     col1, col2, col3, col4 = st.columns(4)
 
     def display_metric(column, label, value, unit="", help_text=""):
         with column:
-            st.metric(label=label, value=f"{value:.1f} {unit}" if isinstance(value, (int, float)) else str(value), help=help_text)
+            # Check if value is not NaN before formatting
+            if pd.notna(value):
+                st.metric(label=label, value=f"{value:.1f} {unit}", help=help_text)
+            else:
+                st.metric(label=label, value="N/A", help=help_text)
 
-    display_metric(col1, "🌡️ Temperature", latest_data.get('Out Temp', 'N/A'), "°C", "Outside Temperature")
-    display_metric(col2, "💧 Humidity", latest_data.get('Out Hum', 'N/A'), "%", "Outside Humidity")
-    display_metric(col3, "💨 Wind Speed", latest_data.get('Wind Speed', 'N/A'), "km/h", "Current Wind Speed")
-    display_metric(col4, "Barometer", latest_data.get('Bar', 'N/A'), "mbar", "Barometric Pressure")
+    display_metric(col1, "🌡️ Temperature", latest_data.get('Out Temp'), "°C", "Outside Temperature")
+    display_metric(col2, "💧 Humidity", latest_data.get('Out Hum'), "%", "Outside Humidity")
+    display_metric(col3, "💨 Wind Speed", latest_data.get('Wind Speed'), "km/h", "Current Wind Speed")
+    display_metric(col4, "Barometer", latest_data.get('Bar'), "mbar", "Barometric Pressure")
 
     # --- Charts Section ---
     st.header("Weather Trends")
@@ -111,4 +123,4 @@ if df is not None and not df.empty:
         st.dataframe(df.head())
 
 else:
-    st.warning("Could not load data. Please ensure the GitHub URL in the script is correct and the file is public.")
+    st.warning("Could not load data. Please ensure the GitHub URL in the script is correct, the file is public, and the format is correct.")
