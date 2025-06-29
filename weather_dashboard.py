@@ -18,7 +18,8 @@ directly from a public GitHub repository.
 def load_data_from_github(url):
     """Loads data from a raw GitHub URL."""
     try:
-        df = pd.read_csv(url)
+        # Use header=1 to skip the first row and use the second row as the header
+        df = pd.read_csv(url, header=1)
         return df
     except Exception as e:
         st.error(f"Failed to load data from the URL. Please check the URL and file format. Error: {e}")
@@ -27,7 +28,7 @@ def load_data_from_github(url):
 # --- Main App Logic ---
 
 # IMPORTANT: Replace this with the raw URL to YOUR WD.csv file on GitHub
-DATA_URL = "https://raw.githubusercontent.com/MohammedBaz/SharranGC/refs/heads/main/WD.csv" 
+DATA_URL = "https://raw.githubusercontent.com/YourUsername/YourRepoName/main/WD.csv" 
 
 # Load the data
 df = load_data_from_github(DATA_URL)
