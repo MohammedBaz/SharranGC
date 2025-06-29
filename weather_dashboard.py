@@ -127,45 +127,31 @@ if df is not None and not df.empty:
         st.subheader("Temperature & Dew Point")
         # Use Plotly graph objects for more robust plotting with gaps
         fig_temp = go.Figure()
-        
-        # Add Temperature trace
         fig_temp.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Temp'], mode='lines', name='Temp'))
-        
-        # Add Dew Point trace
         fig_temp.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Pt'], mode='lines', name='Pt'))
-        
-        # Update layout
-        fig_temp.update_layout(
-            title="Temperature and Dew Point Over Time",
-            xaxis_title="Time",
-            yaxis_title="Temperature (°C)",
-            template="plotly_white",
-            legend_title="Measurement"
-        )
+        fig_temp.update_layout(title="Temperature and Dew Point Over Time", xaxis_title="Time", yaxis_title="Temperature (°C)", template="plotly_white", legend_title="Measurement")
         st.plotly_chart(fig_temp, use_container_width=True)
 
     if 'Speed' in df_plot.columns:
         st.subheader("Wind Speed")
-        fig_wind = px.line(df_plot.reset_index(), x='datetime', y='Speed',
-                           title="Wind Speed Over Time",
-                           labels={'Speed': 'Speed (km/h)', 'datetime': 'Time'},
-                           template="plotly_white")
+        fig_wind = go.Figure()
+        fig_wind.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Speed'], mode='lines', name='Wind Speed'))
+        fig_wind.update_layout(title="Wind Speed Over Time", xaxis_title="Time", yaxis_title="Speed (km/h)", template="plotly_white")
         st.plotly_chart(fig_wind, use_container_width=True)
 
     if 'Rain' in df_plot.columns:
         st.subheader("Cumulative Rainfall")
-        fig_rain = px.area(df_plot.reset_index(), x='datetime', y='Rain',
-                           title="Cumulative Rainfall",
-                           labels={'Rain': 'Rainfall (mm)', 'datetime': 'Time'},
-                           template="plotly_white")
+        fig_rain = go.Figure()
+        # Use fill='tozeroy' to create an area chart effect
+        fig_rain.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Rain'], mode='lines', name='Rainfall', fill='tozeroy'))
+        fig_rain.update_layout(title="Cumulative Rainfall", xaxis_title="Time", yaxis_title="Rainfall (mm)", template="plotly_white")
         st.plotly_chart(fig_rain, use_container_width=True)
 
     if 'Rad' in df_plot.columns:
         st.subheader("Solar Radiation")
-        fig_solar = px.line(df_plot.reset_index(), x='datetime', y='Rad',
-                            title="Solar Radiation Over Time",
-                            labels={'Rad': 'Radiation (W/m²)', 'datetime': 'Time'},
-                            template="plotly_white", color_discrete_sequence=['orange'])
+        fig_solar = go.Figure()
+        fig_solar.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Rad'], mode='lines', name='Solar Radiation', line=dict(color='orange')))
+        fig_solar.update_layout(title="Solar Radiation Over Time", xaxis_title="Time", yaxis_title="Radiation (W/m²)", template="plotly_white")
         st.plotly_chart(fig_solar, use_container_width=True)
 
     # --- Data Table ---
